@@ -1,0 +1,13 @@
+{
+  "name": "cms",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "bluebird": "^3.5.0",
+    "bluebird-queue": "0.0.8",
+    "cross-spawn": "^5.1.0",
+    "lodash": "^4.17.4",
+    "rimraf": "^2.6.1"
+  }
+}
