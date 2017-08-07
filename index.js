@@ -44,7 +44,7 @@ const DEFAULT_OPTIONS = {
   //password: process.env.YT_PASS,
 }
 
-const ID_LIST = ["0wp2qhoop9U", "bVXfkG7q_0s"]
+const ID_LIST = ["2YvD94f_F5k"]
 const MAX_CACHE = 20
 const CACHED_BUFFERS = []
 const CACHED_FILES = []
@@ -139,4 +139,12 @@ const doClip = () => {
   })
 }
 
-doClip()
+rimraf(process.env.SAVE_DIR_CONCAT, ()=>{
+  try{
+    fs.mkdirSync(process.env.SAVE_DIR_CONCAT)
+  }catch(e){
+
+  }
+  doClip()
+})
+
