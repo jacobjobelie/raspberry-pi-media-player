@@ -14,7 +14,7 @@ function play(file) {
 }
 
 watch.createMonitor(
-  __dirname + "/"+process.env.SAVE_DIR_CONCAT
+  __dirname + "/"+process.env.SAVE_DIR_CONCAT,
   { interval: 0.01, filter: file => file.indexOf(".ts") > -1 },
   function(monitor) {
     monitor.on("created", function(f, stat) {
