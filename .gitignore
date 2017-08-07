@@ -14,3 +14,4 @@ client/assets.json
 basic-express-site-2016/
 output_frames/
 package-lock.json
+.env

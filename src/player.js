@@ -35,8 +35,10 @@ module.exports = () => {
     }
     console.log("%%%%%%%%%%%%%%%%%%%%%%");
     console.log(obj);
+    console.log(obj.duration * 1000);
     console.log("%%%%%%%%%%%%%%%%%%%%%%");
     _currentFile = obj.src
+
     _process = spawn(`ffplay`, [_currentFile])
     const stderr = _process.stderr.toString("utf-8")
     const stdout = _process.stdout.toString("utf-8")

@@ -1,14 +1,22 @@
-const { GetFacesFromClip, FacesFromVideo } = require("opencv-faces")
 const {
   downloadEntireVideo,
   record,
+  getBuffers,
   concat,
   splitVideo,
   getVideoDuration,
 } = require("opencv-youtube")
 const exec = require("child_process").exec
-const { flatten, flattenDeep, compact, shuffle } = require("lodash")
+const {
+  flatten,
+  flattenDeep,
+  compact,
+  shuffle,
+  random,
+  sample,
+} = require("lodash")
 const fs = require("fs")
+const path = require("path")
 const Q = require("bluebird")
 const rimraf = require("rimraf")
 const Queue = require("./lib/queue")
@@ -18,10 +26,9 @@ const player = Player()
 const Lib = require("./src/library")
 const lib = Lib()
 player.setLibrary(lib)
-player.on("complete", file => {
-  //fs.unlinkSync(file)
-})
-
+player.on("complete", file => {})
+const YT_API = require("./youtube_api")
+const YT_RELATED = Q.promisify(YT_API.related)
 const SAVE_DIR = "videos"
 
 const DEFAULT_OPTIONS = {
@@ -37,182 +44,99 @@ const DEFAULT_OPTIONS = {
   //password: process.env.YT_PASS,
 }
 
-const ID_LIST = ["5tNNoKEJW5w", "z2G1Ht59cpM"]
+const ID_LIST = ["0wp2qhoop9U", "bVXfkG7q_0s"]
+const MAX_CACHE = 20
+const CACHED_BUFFERS = []
+const CACHED_FILES = []
+const RELATED = {}
 
-const IDS = ["z2G1Ht59cpM"].map(id =>
-  Object.assign({}, { id: id }, DEFAULT_OPTIONS)
-)
+const getId = () => sample(ID_LIST)
 
-const downloadVideo = opt => {
-  return record(opt)
+const getRandomBuffers = count =>
+  new Array(count)
+    .fill(1)
+    .map(
+      (v, i) =>
+        CACHED_BUFFERS[
+          Math.floor(Math.random() * (CACHED_BUFFERS.length * 100)) %
+            CACHED_BUFFERS.length
+        ]
+    )
+
+const getRandomFile = () => sample(CACHED_FILES)
+
+const concatBuffers = buffers => {
+  const bufferLength = buffers.reduce(
+    (sum, buffer) => (sum += buffer.byteLength),
+    0
+  )
+  return Buffer.concat(buffers, bufferLength)
 }
 
-const addToQueue = promises => {
-  queue.push(promises)
+const getTsClip = options => {
+  return record(options).then(function(results) {
+    return results
+  })
+}
+const getBufferClip = options => {
+  return getBuffers(options).then(bufferObj => {
+    const bufferLength = bufferObj.reduce(
+      (sum, obj) => (sum += obj.buffer.byteLength),
+      0
+    )
+    const Duration = bufferObj.reduce(
+      (sum, obj) => (sum += obj.ref.durationSec),
+      0
+    )
+    CACHED_BUFFERS.push(...bufferObj.map(b => b.buffer))
+    const buff = concatBuffers(bufferObj.map(b => b.buffer))
+    const ff = `videos/${Math.random().toFixed(3)}.mp4`
+    fs.writeFileSync(ff, buff)
+    return { src: ff, duration: Duration }
+  })
 }
 
-const EXCLUDE_REFERENCES = {}
-
-const getId  = () => (ID_LIST[Math.floor(Math.random() * 100) % ID_LIST.length])
-
-const cvVideo = opt => {
-  return downloadVideo(opt)
-    .then(function(results) {
-      if (results.length) {
-        const { id } = results[0].options
-        EXCLUDE_REFERENCES[id] = EXCLUDE_REFERENCES[id] || []
-
-        results.forEach(r => {
-          EXCLUDE_REFERENCES[id].push(r.referenceIndex)
-        })
-
-        addToQueue([
-          cvVideo(
-            Object.assign({}, DEFAULT_OPTIONS, {
-              id: getId(),
-              excludeReferences: EXCLUDE_REFERENCES[id],
-            })
-          ),
-        ])
-      }
-
-      return Q.map(
-        results,
-        result => {
-          return GetFacesFromClip(result.file, {
-            doBackgrounds: false,
-            minSecondsBetweenScenes: 1,
-            removeOriginalVideo: true,
-            fps: 0.05, //half the fps,
-            outputDir: "output_frames",
-            outputImageHeight: "480",
-            imageExt: "png",
-            lookbackSecs: 1,
-          })
-        },
-        {
-          concurrency: 1,
-        }
-      )
+const searchRelated = id => {
+  return YT_RELATED(id, 50).then(results => {
+    return results.items.map(obj => {
+      return obj.id.videoId
     })
-    .then(results => {
-      const fResults = flatten(results)
-      const ffResults = fResults.filter(
-        obj => fs.statSync(obj.videoSrc).size > 200
-      )
-
-      if (ffResults.length) {
-        return concat(
-          compact(ffResults).map(s => s.videoSrc), null, SAVE_DIR
-        ).then(concatVideo => {
-          lib.push({
-            src: concatVideo,
-            duration: getVideoDuration(concatVideo),
-          })
-        })
-      } else {
-        if (fResults[0].faces.length) {
-          console.log("****************")
-          console.log(fResults[0].faces[0].videoPath)
-          console.log("****************")
-          lib.push({
-            src: fResults[0].faces[0].videoPath,
-            duration: getVideoDuration(
-              fResults[0].faces[0].videoPath
-            ),
-          })
-        }
-      }
-
-      /*fResults.forEach((obj, i) => {
-        if (fs.statSync(obj.videoSrc).size < 200) {
-          console.log("----------")
-          console.log(fResults[i])
-          console.log("----------")
-          if (fResults[i].faces[0]) {
-            lib.push({
-              src: fResults[i].faces[0].videoPath,
-              duration: getVideoDuration(
-                fResults[i].faces[0].videoPath
-              ),
-            })
-          }
-        } else {
-          lib.push({
-            src: obj.videoSrc,
-            duration: getVideoDuration(obj.videoSrc),
-          })
-        }
-      })*/
-      return results
-      //return concat(compact(flatten(results).map(s => s.videoSrc)))
-      /*return concat(compact(flatten(results).map(s => s.videoSrc)))
-        .then((concatVideo) => {
-          flatten(results).forEach(o => {
-            fs.unlinkSync(o.customMedia.name)
-            fs.unlinkSync(o.file)
-            return concatVideo
-          })
-        })*/
-    })
+  })
 }
 
-rimraf(SAVE_DIR, () => {
-  try {
-    fs.mkdirSync(SAVE_DIR)
-  } catch (e) {}
-  addToQueue([
-    Q.map(
-      IDS,
-      result => {
-        return cvVideo(result)
-      },
-      { concurrency: 1 }
-    ),
-  ])
-  queue.start()
-})
+const doClip = () => {
+  const id = getId()
 
-/*function download() {
+  searchRelated(id).then(ids => ID_LIST.push(sample(ids)))
 
-    .then(results => {
+  if (ID_LIST.length > MAX_CACHE) ID_LIST.shift()
 
-      console.log(results);
-
-
-      return Q.map(results, result => {
-        return GetFacesFromClip(
-          result, {
-            doBackgrounds: false,
-            minSecondsBetweenScenes: 1,
-            fps: 0.05, //half the fps,
-            outputDir: "output_frames",
-            outputImageHeight: "480",
-            imageExt: "png",
-            lookbackSecs: 1
-          }
+  return getTsClip(
+    Object.assign({}, DEFAULT_OPTIONS, {
+      id: id,
+    })
+  ).then(obj => {
+    const duration = obj.reduce((acc, v) => {
+      return (acc += v.duration)
+    }, 0)
+    return concat(
+      obj.map(o => o.file),
+      null,
+      process.env.SAVE_DIR_CONCAT
+    ).then(file => {
+      CACHED_FILES.push(file)
+      setTimeout(() => {
+        const f = getRandomFile()
+        const pf = path.parse(f)
+        const newf = path.join(
+          pf.dir,
+          `${pf.name}__${Math.random().toFixed(3)}${pf.ext}`
         )
-      }, {
-        concurrency: 1
-      })
+        fs.rename(f, newf, (err, succ) => {})
+        doClip()
+      }, duration * 1000)
     })
-    .then(results => {
-
-      console.log(results);
-
-      results.forEach(scene => {})
-    })
-}*/
-/*
-function check() {
-  splitVideo("gd.mp4")
-    .then(videos => {
-      return Q.map(videos, (video, i) => {
-        return FacesFromVideo(video)
-      }, { concurrency: 1 })
-    })
+  })
 }
 
-
-download()
-//check()*/
+doClip()
