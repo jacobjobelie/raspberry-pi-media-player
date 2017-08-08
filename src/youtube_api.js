@@ -5,6 +5,7 @@ youTube.setKey(process.env.YT)
 
 const API = {
   related: youTube.related,
+  getPlayListsItemsById: youTube.getPlayListsItemsById,
 }
 
 module.exports = API

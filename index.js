@@ -19,11 +19,11 @@ const fs = require("fs")
 const path = require("path")
 const Q = require("bluebird")
 const rimraf = require("rimraf")
-const Queue = require("./lib/queue")
+const Queue = require("./queue")
 const queue = Queue()
-const Player = require("./src/player")
+const Player = require("./player")
 const player = Player()
-const Lib = require("./src/library")
+const Lib = require("./library")
 const lib = Lib()
 player.setLibrary(lib)
 player.on("complete", file => {})
@@ -35,7 +35,7 @@ const DEFAULT_OPTIONS = {
   itags: ["134"],
   excludeReferences: null,
   dissimilartyFudge: 0.4,
-  maxReferences: 2,
+  maxReferences: 3,
   removeOriginalVideo: false,
   random: true,
   spreadReferences: true,
@@ -106,7 +106,9 @@ const searchRelated = id => {
 
 const doClip = () => {
   const id = getId()
-
+  console.log("-------------");
+  console.log(id);
+  console.log("-------------");
   searchRelated(id).then(ids => ID_LIST.push(sample(ids)))
 
   if (ID_LIST.length > MAX_CACHE) ID_LIST.shift()
@@ -120,8 +122,13 @@ const doClip = () => {
       return (acc += v.duration)
     }, 0)
     return concat(
-      obj.map(o => o.file),
-      null,
+      obj.map(
+        o =>
+          `${path.join(
+            o.mp4File,
+          )}`
+      ),
+      `${Math.random().toFixed(5)}.mp4`,
       process.env.SAVE_DIR_CONCAT
     ).then(file => {
       CACHED_FILES.push(file)
@@ -139,12 +146,9 @@ const doClip = () => {
   })
 }
 
-rimraf(process.env.SAVE_DIR_CONCAT, ()=>{
-  try{
+rimraf(process.env.SAVE_DIR_CONCAT, () => {
+  try {
     fs.mkdirSync(process.env.SAVE_DIR_CONCAT)
-  }catch(e){
-
-  }
+  } catch (e) {}
   doClip()
 })
-

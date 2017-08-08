@@ -1,5 +1,4 @@
 #!/bin/sh
-npm i
 mkdir videos
-node index.js &
+node server.js &
 node player.js

@@ -1,0 +1,11 @@
+extend default
+
+block content
+  div
+  form(action='/add',method='post')
+    div(data-role='fieldcontain')
+      fieldset(data-role='controlgroup')
+        label(for='text') youtube url
+           input(id='yt',type='text',value='',placeholder='',name='youtube')
+    div(data-role='fieldcontain')
+      input(type='submit',value='Sign Up',data-transition='fade', data-theme='c')
